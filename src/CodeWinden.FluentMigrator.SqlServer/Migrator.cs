@@ -36,19 +36,11 @@ public class Migrator
     /// </summary>
     public void ExecuteMigrations()
     {
-        try
-        {
-            // Configure the FluentMigrator services
-            var serviceProvider = CreateServices();
+        // Configure the FluentMigrator services
+        var serviceProvider = CreateServices();
 
-            // Execute the migrations
-            ExecuteMigrations(serviceProvider);
-
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "An error occurred while executing the migrations.");
-        }
+        // Execute the migrations
+        ExecuteMigrations(serviceProvider);
     }
 
     /// <summary>

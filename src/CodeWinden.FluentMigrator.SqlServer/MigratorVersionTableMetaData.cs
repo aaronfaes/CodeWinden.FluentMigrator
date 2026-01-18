@@ -1,5 +1,3 @@
-using System;
-using FluentMigrator.Runner.Initialization;
 using FluentMigrator.Runner.VersionTableInfo;
 
 namespace CodeWinden.FluentMigrator.SqlServer;
@@ -28,7 +26,7 @@ public class MigratorVersionTableMetaData : IVersionTableMetaData
     /// <summary>
     /// The name of the unique index on the version column
     /// </summary>
-    public string UniqueIndexName => "UC_Version";
+    public string UniqueIndexName => ""; // needed only if CreateWithPrimaryKey is false
     /// <summary>
     /// The name of the column that stores the applied on date
     /// </summary>
