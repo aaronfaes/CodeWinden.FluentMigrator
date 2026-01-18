@@ -1,7 +1,9 @@
 using System.Data;
 using CodeWinden.FluentMigrator.SqlServer;
+using CodeWinden.FluentMigrator.Tests.TestMigrations;
 using DotNet.Testcontainers.Builders;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Testcontainers.MsSql;
 using Xunit.Abstractions;
@@ -62,9 +64,16 @@ public class MigratorTests : IAsyncLifetime
     {
         // Arrange
         _consoleOutput.GetStringBuilder().Clear();
+
+        // Create a custom service to test dependency injection
+        var customService = new CustomMigrationService();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService>(customService);
+
         var migrator = Migrator.Create(options =>
         {
-            options.SetAssemblyWithMigrations<MigratorTests>()
+            options.SetServiceCollection(serviceCollection)
+                   .SetAssemblyWithMigrations<MigratorTests>()
                    .SetConnectionString(_connectionString);
         });
 
@@ -77,19 +86,25 @@ public class MigratorTests : IAsyncLifetime
 
         var usersTableExists = TableExists(connection, "Users");
         var ordersTableExists = TableExists(connection, "Orders");
+        var migrationLogTableExists = TableExists(connection, "MigrationLog");
         var versionTableExists = TableExists(connection, "VersionInfo");
 
         Assert.True(usersTableExists, "Users table should exist after migration");
         Assert.True(ordersTableExists, "Orders table should exist after migration");
+        Assert.True(migrationLogTableExists, "MigrationLog table should exist after migration");
         Assert.True(versionTableExists, "VersionInfo table should exist after migration");
 
-        // Verify all 3 migrations were applied
+        // Verify all 4 migrations were applied
         var migrationCount = GetAppliedMigrationCount(connection);
-        Assert.Equal(3, migrationCount);
+        Assert.Equal(4, migrationCount);
 
         // Verify Users table structure
         var statusColumnExists = ColumnExists(connection, "Users", "Status");
         Assert.True(statusColumnExists, "Status column should exist in Users table");
+
+        // Verify custom service was used via dependency injection
+        Assert.Single(customService.ExecutedMigrations);
+        Assert.Contains(nameof(TestMigration004_WithCustomService), customService.ExecutedMigrations);
 
         // Verify stdout output
         var output = _consoleOutput.ToString();
@@ -101,6 +116,8 @@ public class MigratorTests : IAsyncLifetime
         Assert.Contains("2: TestMigration002_CreateOrdersTable migrating", output);
         Assert.Contains("CreateForeignKey FK_Orders_Users Orders(UserId) Users(Id)", output);
         Assert.Contains("3: TestMigration003_AddUserStatus migrating", output);
+        Assert.Contains("4: TestMigration004_WithCustomService migrating", output);
+        Assert.Contains("CreateTable MigrationLog", output);
         Assert.Contains("Finished 'Migrating' the database.", output);
         Assert.Contains("Beginning Transaction", output);
         Assert.Contains("Committing Transaction", output);
@@ -110,11 +127,15 @@ public class MigratorTests : IAsyncLifetime
     [Fact]
     public void ExecuteMigrations_RunningTwice_DoesNotApplyMigrationsAgain()
     {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         // Arrange
         var migrator = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString);
+                   .SetConnectionString(_connectionString)
+                   .SetServiceCollection(serviceCollection);
         });
 
         // Act - Run migrations twice
@@ -122,10 +143,15 @@ public class MigratorTests : IAsyncLifetime
 
         // Clear output and reinstantiate to simulate a new run
         _consoleOutput.GetStringBuilder().Clear();
+
+        serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         migrator = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString);
+                    .SetConnectionString(_connectionString)
+                    .SetServiceCollection(serviceCollection);
         });
 
         migrator.ExecuteMigrations();
@@ -134,11 +160,11 @@ public class MigratorTests : IAsyncLifetime
         using var connection = new SqlConnection(_connectionString);
         connection.Open();
         var migrationCount = GetAppliedMigrationCount(connection);
-        Assert.Equal(3, migrationCount);
+        Assert.Equal(4, migrationCount);
 
         // Verify stdout shows no migrations executed
         var output = _consoleOutput.ToString();
-        Assert.Contains("3: TestMigration003_AddUserStatus (current)", output);
+        Assert.Contains("4: TestMigration004_WithCustomService (current)", output);
         Assert.Contains("No migrations found to execute.", output);
         Assert.DoesNotContain("Start 'Migrating' the database.", output);
         Assert.DoesNotContain("Finished 'Migrating' the database.", output);
@@ -153,11 +179,16 @@ public class MigratorTests : IAsyncLifetime
     {
         // Arrange
         _consoleOutput.GetStringBuilder().Clear();
+
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migrator = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString)
-                   .SetArguments(["--MigrateToVersion", "2"]); // Only migrate to version 2
+                    .SetConnectionString(_connectionString)
+                    .SetServiceCollection(serviceCollection)
+                    .SetArguments(["--MigrateToVersion", "2"]); // Only migrate to version 2
         });
 
         // Act
@@ -195,19 +226,27 @@ public class MigratorTests : IAsyncLifetime
     public void ExecuteMigrations_WithMigrateToVersion1ThenUpgradeToLatest_AppliesRemainingMigrations()
     {
         // Arrange & Act - First migrate to version 1
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migrator1 = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString)
-                   .SetArguments(["--MigrateToVersion", "1"]);
+                    .SetConnectionString(_connectionString)
+                    .SetArguments(["--MigrateToVersion", "1"])
+                    .SetServiceCollection(serviceCollection);
         });
         migrator1.ExecuteMigrations();
 
         // Act - Now migrate to latest
+        serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migrator2 = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString);
+                    .SetConnectionString(_connectionString)
+                    .SetServiceCollection(serviceCollection);
         });
         migrator2.ExecuteMigrations();
 
@@ -223,7 +262,7 @@ public class MigratorTests : IAsyncLifetime
 
         // All 3 migrations should be applied
         var migrationCount = GetAppliedMigrationCount(connection);
-        Assert.Equal(3, migrationCount);
+        Assert.Equal(4, migrationCount);
 
         // Status column should exist
         var statusColumnExists = ColumnExists(connection, "Users", "Status");
@@ -238,20 +277,28 @@ public class MigratorTests : IAsyncLifetime
     public void ExecuteMigrations_WithRollbackToVersion_RollsBackToSpecifiedVersion()
     {
         // Arrange - First run all migrations
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migratorUp = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString);
+                    .SetConnectionString(_connectionString)
+                    .SetServiceCollection(serviceCollection);
         });
         migratorUp.ExecuteMigrations();
 
         // Act - Rollback to version 1
         _consoleOutput.GetStringBuilder().Clear();
+        serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migratorDown = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString)
-                   .SetArguments(["--RollbackToVersion", "1"]);
+                    .SetConnectionString(_connectionString)
+                    .SetArguments(["--RollbackToVersion", "1"])
+                    .SetServiceCollection(serviceCollection);
         });
         migratorDown.ExecuteMigrations();
 
@@ -290,20 +337,28 @@ public class MigratorTests : IAsyncLifetime
     public void ExecuteMigrations_WithRollbackToVersion0_RemovesAllMigrations()
     {
         // Arrange - First run all migrations
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migratorUp = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString);
+                    .SetConnectionString(_connectionString)
+                    .SetServiceCollection(serviceCollection);
         });
         migratorUp.ExecuteMigrations();
 
         // Act - Rollback to version 0 (remove all)
         _consoleOutput.GetStringBuilder().Clear();
+        serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migratorDown = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString)
-                   .SetArguments(["--RollbackToVersion", "0"]);
+                    .SetConnectionString(_connectionString)
+                    .SetArguments(["--RollbackToVersion", "0"])
+                    .SetServiceCollection(serviceCollection);
         });
         migratorDown.ExecuteMigrations();
 
@@ -340,10 +395,14 @@ public class MigratorTests : IAsyncLifetime
     public void ExecuteMigrations_WithRefreshEnabled_DropsAndRecreatesAllTables()
     {
         // Arrange - First run migrations normally
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migratorInitial = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString);
+                   .SetConnectionString(_connectionString)
+                   .SetServiceCollection(serviceCollection);
         });
         migratorInitial.ExecuteMigrations();
 
@@ -359,11 +418,15 @@ public class MigratorTests : IAsyncLifetime
 
         // Act - Run with Refresh enabled
         _consoleOutput.GetStringBuilder().Clear();
+        serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migratorRefresh = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
                    .SetConnectionString(_connectionString)
-                   .SetArguments(["--Refresh", "true"]);
+                   .SetArguments(["--Refresh", "true"])
+                   .SetServiceCollection(serviceCollection);
         });
         migratorRefresh.ExecuteMigrations();
 
@@ -399,12 +462,16 @@ public class MigratorTests : IAsyncLifetime
     public void ExecuteMigrations_WithCustomTimeout_UsesSpecifiedTimeout()
     {
         // Arrange
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var customTimeout = TimeSpan.FromSeconds(120);
         var migrator = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
                    .SetConnectionString(_connectionString)
-                   .SetTimeout(customTimeout);
+                   .SetTimeout(customTimeout)
+                   .SetServiceCollection(serviceCollection);
         });
 
         // Act
@@ -425,10 +492,14 @@ public class MigratorTests : IAsyncLifetime
     public void ExecuteMigrations_AfterCompletion_AllowsDataInsertionAndRetrieval()
     {
         // Arrange
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migrator = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString);
+                   .SetConnectionString(_connectionString)
+                   .SetServiceCollection(serviceCollection);
         });
         migrator.ExecuteMigrations();
 
@@ -478,10 +549,14 @@ public class MigratorTests : IAsyncLifetime
     public void ExecuteMigrations_ForeignKeyConstraint_EnforcesReferentialIntegrity()
     {
         // Arrange
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<ICustomMigrationService, CustomMigrationService>();
+
         var migrator = Migrator.Create(options =>
         {
             options.SetAssemblyWithMigrations<MigratorTests>()
-                   .SetConnectionString(_connectionString);
+                   .SetConnectionString(_connectionString)
+                   .SetServiceCollection(serviceCollection);
         });
         migrator.ExecuteMigrations();
 
