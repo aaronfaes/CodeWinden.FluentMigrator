@@ -101,7 +101,7 @@ public class Migrator
                 _logger.LogInformation("Finished 'Refreshing' the database.");
             }
 
-            // Migrate to the lastest version
+            // Migrate to the latest version
             _logger.LogInformation("Start 'Migrating' the database.");
             runner.MigrateUp();
             _logger.LogInformation("Finished 'Migrating' the database.");
@@ -149,7 +149,7 @@ public class Migrator
                 .WithGlobalCommandTimeout(_options.Timeout)
             )
         ;
-        return _options.ServiceCollection.BuildServiceProvider(false);
+        return _options.ServiceCollection.BuildServiceProvider();
     }
 
     /// <summary>
@@ -180,9 +180,6 @@ public class Migrator
         {
             logger.LogError(ex, "An error occurred while creating the Migrator.");
 
-            Environment.Exit(1);
-
-            // This line will never be reached, but is required to satisfy the compiler
             throw;
         }
     }

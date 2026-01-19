@@ -1,8 +1,6 @@
-using System.Reflection;
 using CodeWinden.FluentMigrator.SqlServer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualStudio.TestPlatform.TestHost;
 
 namespace CodeWinden.FluentMigrator.Tests;
 
@@ -97,10 +95,6 @@ public partial class MigratorOptionsBuilderTests
         var builder = new MigratorOptionsBuilder();
         var customKey = "CustomConnectionString";
         var expectedConnectionString = "Server=localhost;Database=Custom;";
-        var configData = new Dictionary<string, string?>
-        {
-            { customKey, expectedConnectionString }
-        };
 
         // Act
         builder.SetAssemblyWithMigrations<MigratorOptionsBuilderTests>()

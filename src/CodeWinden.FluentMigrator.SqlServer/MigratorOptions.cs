@@ -1,4 +1,3 @@
-using System.Data.Common;
 using System.Reflection;
 using FluentMigrator.Runner.VersionTableInfo;
 using Microsoft.Extensions.Configuration;
