@@ -74,7 +74,7 @@ public class Migrator
             if (_options.MigrateToVersion.HasValue)
             {
                 // Check if migrations need to be applied.
-                if (!runner.HasMigrationsToApplyUp(_options.MigrateToVersion))
+                if (!runner.HasMigrationsToApplyUp(_options.MigrateToVersion.Value))
                 {
                     _logger.LogInformation("No migrations found to execute.");
                     return;
@@ -190,9 +190,7 @@ public class Migrator
     /// <returns>A logger instance.</returns>
     private static ILogger GetLogger()
     {
-        using (var logFactory = LoggerFactory.Create((builder) => builder.AddFluentMigratorConsole()))
-        {
-            return logFactory.CreateLogger<Migrator>();
-        }
+        var logFactory = LoggerFactory.Create((builder) => builder.AddFluentMigratorConsole());
+        return logFactory.CreateLogger<Migrator>();
     }
 }
