@@ -190,8 +190,9 @@ public class Migrator
     /// <returns>A logger instance.</returns>
     private static ILogger GetLogger()
     {
-        var logFactory = LoggerFactory.Create((builder) => builder.AddFluentMigratorConsole());
-
-        return logFactory.CreateLogger<Migrator>();
+        using (var logFactory = LoggerFactory.Create((builder) => builder.AddFluentMigratorConsole()))
+        {
+            return logFactory.CreateLogger<Migrator>();
+        }
     }
 }

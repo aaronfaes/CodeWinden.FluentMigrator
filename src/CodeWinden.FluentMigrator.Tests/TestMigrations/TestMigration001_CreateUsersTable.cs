@@ -14,6 +14,6 @@ public class TestMigration001_CreateUsersTable : AutoReversingMigration
             .WithColumn("Id").AsInt32().PrimaryKey().Identity()
             .WithColumn("Username").AsString(100).NotNullable()
             .WithColumn("Email").AsString(255).NotNullable()
-            .WithColumn("CreatedAt").AsDateTime().NotNullable().WithDefault(SystemMethods.CurrentDateTime);
+            .WithColumn("CreatedAt").AsDateTime().NotNullable().WithDefaultValue(SystemMethods.CurrentDateTime);
     }
 }

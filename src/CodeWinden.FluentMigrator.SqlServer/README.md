@@ -87,7 +87,7 @@ public class EncryptUserEmails : Migration
 
             foreach (var (id, encryptedEmail) in updates)
             {
-                cmd.CommandText = $"UPDATE Users SET EncryptedEmail = @Email WHERE Id = @Id";
+                cmd.CommandText = "UPDATE Users SET EncryptedEmail = @Email WHERE Id = @Id";
                 cmd.Parameters.Clear();
                 cmd.Parameters.AddWithValue("@Email", encryptedEmail);
                 cmd.Parameters.AddWithValue("@Id", id);
@@ -125,7 +125,7 @@ public class EncryptUserEmails : Migration
 
             foreach (var (id, email) in updates)
             {
-                cmd.CommandText = $"UPDATE Users SET Email = @Email WHERE Id = @Id";
+                cmd.CommandText = "UPDATE Users SET Email = @Email WHERE Id = @Id";
                 cmd.Parameters.Clear();
                 cmd.Parameters.AddWithValue("@Email", email);
                 cmd.Parameters.AddWithValue("@Id", id);
