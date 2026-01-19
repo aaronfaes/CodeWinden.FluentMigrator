@@ -56,7 +56,7 @@ public class Migrator
         using (var scope = serviceProvider.CreateScope())
         {
             // Get the migration runner
-            var runner = serviceProvider.GetRequiredService<IMigrationRunner>();
+            var runner = scope.ServiceProvider.GetRequiredService<IMigrationRunner>();
 
             // List all migrations
             runner.ListMigrations();
